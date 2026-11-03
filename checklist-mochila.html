@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checklist de mi mochila</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  :root {
+    --ink: #1f2933;
+    --accent: #2f6fed;
+    --soft: #eef3ff;
+    --line: #c9d3e6;
+    --muted: #8a94a3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #d9dde5; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); }
+  button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .tools { width: 210mm; max-width: 100%; margin: 10mm auto 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tools a { margin-right: auto; color: var(--accent); font-weight: 600; text-decoration: none; }
+  .tools button { padding: 6px 12px; border: 1.5px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); }
+
+  .page {
+    width: 210mm; max-width: 100%; min-height: 297mm;
+    margin: 4mm auto 10mm; padding: 14mm 14mm 12mm;
+    background: #fff; position: relative;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    display: flex; flex-direction: column;
+  }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid var(--accent); padding-bottom: 4mm; }
+  h1 { margin: 0; font-size: 26pt; letter-spacing: .5px; }
+  h1 span { color: var(--accent); }
+  .fecha { font-size: 10pt; text-align: right; }
+  .fecha b { display: inline-block; min-width: 45mm; border-bottom: 1px solid var(--ink); height: 5mm; vertical-align: bottom; }
+  .sub { margin: 3mm 0 5mm; font-size: 10pt; color: #5b6676; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; flex: 1; align-content: start; }
+  section { border: 1.5px solid var(--line); border-radius: 4mm; padding: 3.5mm 4mm 2mm; background: #fff; break-inside: avoid; }
+  section h2 { margin: 0 0 2.5mm; font-size: 12pt; background: var(--soft); color: var(--accent); padding: 1.5mm 3mm; border-radius: 2mm; display: flex; align-items: center; gap: 2mm; }
+  section h2 .titulo { flex: 1; }
+
+  .item { display: flex; align-items: center; gap: 3mm; padding: 2mm 0; border-bottom: 1px dashed var(--line); font-size: 11.5pt; }
+  input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 5.5mm; height: 5.5mm; border: 1.8px solid var(--ink); border-radius: 1.2mm; flex: none; margin: 0; display: grid; place-content: center; cursor: pointer; }
+  input[type=checkbox]::after { content: "✔"; font-size: 11pt; color: var(--accent); transform: scale(0); transition: transform .1s; }
+  input[type=checkbox]:checked::after { transform: scale(1); }
+  input:checked + .txt { text-decoration: line-through; color: var(--muted); }
+  .txt { flex: 1; min-height: 5mm; overflow-wrap: anywhere; }
+  .txt:empty { border-bottom: 1px solid var(--line); }
+  .txt:empty::before { content: attr(data-ph); color: #b3bccb; }
+
+  .x { border: 0; background: none; color: var(--muted); font-size: 14pt; line-height: 1; padding: 0 4px; border-radius: 3px; }
+  .x:hover { color: #e5484d; }
+  .nuevo { display: block; width: 100%; margin: 2mm 0; padding: 4px 8px; font: inherit; font-size: 10.5pt; border: 1.5px dashed var(--line); border-radius: 3px; background: #fff; color: var(--ink); }
+  .nueva-seccion { border-style: dashed; display: flex; align-items: center; }
+  .nueva-seccion .nuevo { margin: 0 0 2mm; }
+
+  footer { margin-top: 5mm; text-align: center; font-size: 10pt; color: #5b6676; border-top: 1px solid var(--line); padding-top: 3mm; }
+  footer b { color: var(--accent); }
+
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .page { padding: 10mm 6mm; } }
+  @media print {
+    html, body { background: #fff; }
+    .page { margin: 0; box-shadow: none; width: auto; }
+    .no-print { display: none !important; }
+    .txt:empty::before { content: ""; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tools no-print">
+  <button id="desmarcar">Desmarcar todo</button>
+  <button onclick="window.print()">Imprimir</button>
+</div>
+
+<div class="page">
+  <header>
+    <h1>🎒 Mi <span>Mochila</span></h1>
+    <div class="fecha">Fecha: <b contenteditable="plaintext-only" aria-label="Fecha"></b></div>
+  </header>
+  <p class="sub">Revisa esta lista cada mañana antes de salir de casa.</p>
+
+  <div class="grid" id="grid"></div>
+
+  <footer><b>Última revisión:</b> ¿Cerré la mochila? ¿Llevo las llaves? ¡Listo para salir! ✅</footer>
+</div>
+
+<script>
+  const crear = (txt, items) => ({ t: txt, i: items.map(n => ({ n, c: false })) });
+  const datos = [
+    crear('📱 Tecnología', ['Laptop', 'Cargador de laptop', 'Celular', 'Audífonos Jabra', 'Audifonos RedMi', 'Kindle']),
+    crear('📝 Estudio / Trabajo', ['', '', '', '']),
+    crear('🪪 Esenciales', ['Billetera', 'Documento de identidad', 'Llaves', 'Dinero', 'Gafas']),
+    crear('🥤 Comida y salud', ['Botella de agua', 'Almuerzo', 'Desayuno', 'Snack', 'Medicinas', 'Toallitas húmedas', 'Lipstick', 'Protector solar']),
+    crear('☔ Según el clima', ['Chaqueta / impermeable']),
+    crear('➕ Otros', ['', '', '', ''])
+  ];
+
+  const grid = document.getElementById('grid');
+
+  // Texto editable: Enter confirma, pegar solo texto plano
+  function editable(el, ph, alCambiar) {
+    el.contentEditable = 'plaintext-only';
+    if (ph) el.dataset.ph = ph;
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+    el.addEventListener('input', () => alCambiar(el.textContent));
+  }
+
+  function boton(texto, etiqueta, accion) {
+    const b = document.createElement('button');
+    b.className = 'x no-print';
+    b.textContent = texto;
+    b.setAttribute('aria-label', etiqueta);
+    b.onclick = accion;
+    return b;
+  }
+
+  function campoNuevo(placeholder, alAgregar) {
+    const inp = document.createElement('input');
+    inp.className = 'nuevo no-print';
+    inp.type = 'text';
+    inp.placeholder = placeholder;
+    inp.setAttribute('aria-label', placeholder);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && inp.value.trim()) { alAgregar(inp.value.trim()); }
+    });
+    return inp;
+  }
+
+  function dibujar(enfocar) {
+    grid.innerHTML = '';
+    datos.forEach((s, si) => {
+      const sec = document.createElement('section');
+
+      const h2 = document.createElement('h2');
+      const tit = document.createElement('span');
+      tit.className = 'titulo';
+      tit.textContent = s.t;
+      editable(tit, 'Nombre de la sección', v => s.t = v);
+      h2.append(tit, boton('×', 'Borrar sección', () => { datos.splice(si, 1); dibujar(); }));
+      sec.append(h2);
+
+      s.i.forEach((it, ii) => {
+        const fila = document.createElement('div');
+        fila.className = 'item';
+
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = it.c;
+        chk.setAttribute('aria-label', 'Marcar');
+        chk.onchange = () => it.c = chk.checked;
+
+        const txt = document.createElement('span');
+        txt.className = 'txt';
+        txt.textContent = it.n;
+        editable(txt, 'Escribe aquí', v => it.n = v);
+
+        fila.append(chk, txt, boton('×', 'Borrar cosa', () => { s.i.splice(ii, 1); dibujar(); }));
+        sec.append(fila);
+      });
+
+      const nuevo = campoNuevo('Agregar a esta sección…', v => {
+        s.i.push({ n: v, c: false });
+        dibujar(si);
+      });
+      sec.append(nuevo);
+      if (enfocar === si) nuevo.focus();
+      grid.append(sec);
+    });
+
+    const nueva = document.createElement('section');
+    nueva.className = 'nueva-seccion no-print';
+    nueva.append(campoNuevo('+ Nueva sección (escribe y Enter)', v => {
+      datos.push(crear(v, []));
+      dibujar(datos.length - 1);
+    }));
+    grid.append(nueva);
+  }
+
+  document.getElementById('desmarcar').onclick = () => {
+    datos.forEach(s => s.i.forEach(it => it.c = false));
+    dibujar();
+  };
+
+  dibujar();
+</script>
+<script src="/menu.js"></script>
+</body>
+</html>

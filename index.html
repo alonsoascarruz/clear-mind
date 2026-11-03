@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pendientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #F2F6FB;
+    --cuadricula: #D9E3F0;
+    --tinta: #1B2A55;
+    --tinta-suave: #6B7BA3;
+    --margen: #E5484D;
+    --hoja: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    color: var(--tinta);
+    background-color: var(--papel);
+    background-image:
+      linear-gradient(var(--cuadricula) 1px, transparent 1px),
+      linear-gradient(90deg, var(--cuadricula) 1px, transparent 1px);
+    background-size: 28px 28px;
+    display: flex; justify-content: center; padding: 48px 16px;
+  }
+  main {
+    width: 100%; max-width: 560px; background: var(--hoja);
+    border-left: 3px solid var(--margen);
+    padding: 32px 28px 24px 32px;
+    box-shadow: 0 1px 0 var(--cuadricula), 0 12px 30px -18px rgba(27,42,85,.35);
+    align-self: flex-start;
+  }
+  h1 { margin: 0 0 4px; font-size: 2.4rem; font-weight: 800; letter-spacing: -.02em; }
+  .resumen { margin: 0 0 24px; color: var(--tinta-suave); }
+  form { display: flex; gap: 8px; margin-bottom: 20px; }
+  input[type=text] {
+    flex: 1; font: inherit; padding: 10px 12px; color: var(--tinta);
+    border: 2px solid var(--tinta); border-radius: 4px; background: #fff;
+  }
+  button { font: inherit; cursor: pointer; }
+  .agregar {
+    padding: 10px 16px; font-weight: 600; color: #fff; background: var(--tinta);
+    border: 2px solid var(--tinta); border-radius: 4px;
+  }
+  :focus-visible { outline: 3px solid var(--margen); outline-offset: 2px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--cuadricula);
+  }
+  .check {
+    width: 24px; height: 24px; flex: none; border: 2px solid var(--tinta);
+    border-radius: 4px; background: #fff; display: grid; place-items: center; padding: 0;
+  }
+  li.hecha .check { background: var(--tinta); }
+  li.hecha .check::after { content: "✓"; color: #fff; font-size: 15px; line-height: 1; }
+  .texto { flex: 1; overflow-wrap: anywhere; }
+  li.hecha .texto { color: var(--tinta-suave); text-decoration: line-through; text-decoration-color: var(--margen); text-decoration-thickness: 2px; }
+  .borrar { border: 0; background: none; color: var(--tinta-suave); font-size: 1.3rem; padding: 4px 8px; border-radius: 4px; }
+  .borrar:hover { color: var(--margen); }
+  .vacio, .error { padding: 20px 0; color: var(--tinta-suave); }
+  .error { color: var(--margen); }
+  .error code { background: var(--papel); padding: 1px 5px; border-radius: 3px; }
+  .limpiar { margin-top: 16px; background: none; border: 0; color: var(--tinta-suave); text-decoration: underline; padding: 4px 0; }
+  .limpiar[hidden] { display: none; }
+  @media (prefers-reduced-motion: no-preference) { .check { transition: background .12s; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pendientes</h1>
+  <p class="resumen" id="resumen">Cargando…</p>
+
+  <br><br>
+
+  <form id="form">
+    <input type="text" id="texto" placeholder="¿Qué tienes que hacer?" maxlength="255" autocomplete="off" aria-label="Nueva tarea">
+    <button class="agregar" type="submit">Agregar</button>
+  </form>
+
+  <div id="mensaje"></div>
+  <ul id="lista"></ul>
+  <button class="limpiar" id="limpiar" hidden>Borrar tareas completadas</button>
+</main>
+
+<script>
+  const API = '/api';
+  const $ = id => document.getElementById(id);
+
+  async function llamar(accion, cuerpo) {
+    const res = await fetch(`${API}?accion=${accion}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo || {})
+    });
+    const datos = await res.json();
+    if (!res.ok) throw new Error(datos.error || 'Error del servidor');
+    return datos;
+  }
+
+  function mostrar(tareas) {
+    $('mensaje').innerHTML = '';
+    const lista = $('lista');
+    lista.innerHTML = '';
+    const pendientes = tareas.filter(t => !+t.hecha).length;
+    const hechas = tareas.length - pendientes;
+    $('resumen').textContent = tareas.length
+      ? `${pendientes} por hacer · ${hechas} completada${hechas === 1 ? '' : 's'}`
+      : 'Todo al día.';
+    $('limpiar').hidden = hechas === 0;
+
+    if (!tareas.length) {
+      $('mensaje').innerHTML = '<p class="vacio">No tienes pendientes. Escribe el primero arriba.</p>';
+      return;
+    }
+    for (const t of tareas) {
+      const li = document.createElement('li');
+      if (+t.hecha) li.className = 'hecha';
+
+      const check = document.createElement('button');
+      check.className = 'check';
+      check.setAttribute('aria-label', +t.hecha ? 'Marcar como pendiente' : 'Marcar como hecha');
+      check.onclick = () => accion('alternar', { id: t.id });
+
+      const txt = document.createElement('span');
+      txt.className = 'texto';
+      txt.textContent = t.texto;
+
+      const del = document.createElement('button');
+      del.className = 'borrar';
+      del.textContent = '×';
+      del.setAttribute('aria-label', 'Borrar tarea');
+      del.onclick = () => accion('borrar', { id: t.id });
+
+      li.append(check, txt, del);
+      lista.append(li);
+    }
+  }
+
+  function falla(e) {
+    $('resumen').textContent = 'No se pudo conectar.';
+    $('mensaje').innerHTML = `<p class="error">${e.message}<br>
+      Abre la página en <code>http://localhost:5000</code> (no con doble clic al archivo), asegúrate de que <code>app.py</code> esté corriendo y revisa la contraseña de MySQL dentro de <code>app.py</code>.</p>`;
+  }
+
+  async function accion(nombre, cuerpo) {
+    try { mostrar(await llamar(nombre, cuerpo)); } catch (e) { falla(e); }
+  }
+
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const texto = $('texto').value.trim();
+    if (!texto) return;
+    $('texto').value = '';
+    accion('agregar', { texto });
+  });
+  $('limpiar').onclick = () => accion('limpiar');
+
+  accion('listar');
+</script>
+<script src="/menu.js"></script>
+</body>
+</html>
